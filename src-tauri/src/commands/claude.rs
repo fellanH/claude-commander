@@ -1,5 +1,5 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
-use crate::models::{ClaudePlan, ClaudeSession, ClaudeTask, ClaudeTaskFile};
+use crate::models::{ClaudePlan, ClaudeSession, ClaudeTask, ClaudeTaskFile, SessionMessage};
 use std::path::PathBuf;
 
 fn claude_dir() -> PathBuf {
@@ -263,6 +263,60 @@ pub fn read_claude_sessions() -> CmdResult<Vec<ClaudeSession>> {
     // Sort by last activity
     sessions.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
     Ok(sessions)
+}
+
+#[tauri::command]
+pub fn read_session_messages(
+    project_key: String,
+    session_id: String,
+) -> CmdResult<Vec<SessionMessage>> {
+    let path = claude_dir()
+        .join("projects")
+        .join(&project_key)
+        .join(format!("{}.jsonl", session_id));
+
+    use std::io::BufRead;
+    let file = std::fs::File::open(&path)
+        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+
+    let messages = std::io::BufReader::new(file)
+        .lines()
+        .filter_map(|l| l.ok())
+        .filter_map(|line| {
+            let v: serde_json::Value = serde_json::from_str(&line).ok()?;
+            let msg_type = v["type"].as_str()?;
+            let timestamp = v["timestamp"].as_str().unwrap_or("").to_string();
+            let uuid = v["uuid"].as_str().unwrap_or("").to_string();
+            let message = &v["message"];
+
+            let content = match msg_type {
+                "user" => message["content"].as_str()?.to_string(),
+                "assistant" => {
+                    message["content"]
+                        .as_array()?
+                        .iter()
+                        .filter(|b| b["type"].as_str() == Some("text"))
+                        .filter_map(|b| b["text"].as_str())
+                        .collect::<Vec<_>>()
+                        .join("")
+                }
+                _ => return None,
+            };
+
+            if content.is_empty() {
+                return None;
+            }
+
+            Some(SessionMessage {
+                uuid,
+                role: msg_type.to_string(),
+                content,
+                timestamp,
+            })
+        })
+        .collect();
+
+    Ok(messages)
 }
 
 fn read_first_line_cwd(path: &std::path::Path) -> Option<String> {

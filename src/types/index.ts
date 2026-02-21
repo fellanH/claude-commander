@@ -50,6 +50,13 @@ export interface ClaudePlan {
 
 // ─── Claude Sessions ───────────────────────────────────────────────────────
 
+export interface SessionMessage {
+  uuid: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
 export interface ClaudeSession {
   id: string;
   project_key: string;

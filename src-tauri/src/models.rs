@@ -110,6 +110,14 @@ pub struct ClaudePlan {
 // ─── Claude Sessions ───────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionMessage {
+    pub uuid: String,
+    pub role: String,    // "user" | "assistant"
+    pub content: String, // extracted text
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeSession {
     pub id: String,
     pub project_key: String,

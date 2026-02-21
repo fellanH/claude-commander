@@ -4,6 +4,7 @@ import type {
   ClaudePlan,
   ClaudeSession,
   ClaudeTaskFile,
+  SessionMessage,
   CreatePlanningItemInput,
   CreateProjectInput,
   DeployConfig,
@@ -46,6 +47,12 @@ export const api = {
     invoke<string>("read_claude_plan", { filename }),
 
   readClaudeSessions: () => invoke<ClaudeSession[]>("read_claude_sessions"),
+
+  readSessionMessages: (project_key: string, session_id: string) =>
+    invoke<SessionMessage[]>("read_session_messages", {
+      projectKey: project_key,
+      sessionId: session_id,
+    }),
 
   // Terminal
   detectTerminal: () => invoke<TerminalInfo>("detect_terminal"),
