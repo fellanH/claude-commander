@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import type { AppSettings } from "@/types";
-import { check } from "@tauri-apps/plugin-updater";
+import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { getVersion } from "@tauri-apps/api/app";
-import { restart } from "@tauri-apps/plugin-process";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 type UpdateState =
   | "idle"
@@ -79,7 +79,7 @@ export default function SettingsPage() {
     try {
       let downloaded = 0;
       let total = 0;
-      await updateObj.download((event) => {
+      await updateObj.download((event: DownloadEvent) => {
         if (event.event === "Started") {
           total = event.data.contentLength ?? 0;
         } else if (event.event === "Progress") {
@@ -88,7 +88,7 @@ export default function SettingsPage() {
         }
       });
       await updateObj.install();
-      await restart();
+      await relaunch();
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setUpdateState("error");
