@@ -219,6 +219,18 @@ function ProjectCard({
               {project.path.replace("/Users/admin/", "~/")}
             </p>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="opacity-0 group-hover:opacity-100 transition-opacity size-7 shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              api.launchClaude(project.path);
+            }}
+          >
+            <Terminal className="size-3.5" />
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 mt-3">

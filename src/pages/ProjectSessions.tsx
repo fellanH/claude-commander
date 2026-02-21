@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOutletContext } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Terminal,
@@ -11,24 +12,18 @@ import {
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
-import { useClaudeWatcher } from "@/hooks/useClaudeWatcher";
-import type { ClaudeSession } from "@/types";
+import type { ClaudeSession, Project } from "@/types";
 
-export default function ClaudeSessions() {
+export default function ProjectSessions() {
+  const { project } = useOutletContext<{ project: Project }>();
   const [selectedSession, setSelectedSession] = useState<ClaudeSession | null>(
     null,
   );
 
-  const {
-    data: sessions,
-    isLoading,
-    refetch,
-  } = useQuery({
+  const { data: allSessions, isLoading } = useQuery({
     queryKey: ["claude-sessions"],
     queryFn: api.readClaudeSessions,
   });
-
-  useClaudeWatcher("claude-sessions-changed", refetch);
 
   const { data: messages, isLoading: messagesLoading } = useQuery({
     queryKey: [
@@ -44,6 +39,10 @@ export default function ClaudeSessions() {
     enabled: !!selectedSession,
   });
 
+  const sessions = allSessions?.filter(
+    (s) => s.cwd && s.cwd.startsWith(project.path),
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -56,9 +55,9 @@ export default function ClaudeSessions() {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-64">
         <Terminal className="size-10 text-muted-foreground mb-3" />
-        <h3 className="font-medium mb-1">No sessions</h3>
+        <h3 className="font-medium mb-1">No sessions for this project yet</h3>
         <p className="text-sm text-muted-foreground">
-          Claude Code sessions appear here as you use them
+          Sessions appear here when you run Claude Code in this project
         </p>
       </div>
     );

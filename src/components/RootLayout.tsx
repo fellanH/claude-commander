@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { SecondaryNav } from "./SecondaryNav";
+import { CommandPalette } from "./CommandPalette";
 import { Toaster } from "sonner";
 
 const primaryNavItems = [
@@ -79,6 +80,7 @@ export function RootLayout() {
       </main>
 
       <Toaster position="bottom-right" richColors />
+      <CommandPalette />
     </div>
   );
 }

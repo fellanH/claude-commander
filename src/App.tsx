@@ -11,6 +11,7 @@ import ProjectGit from "@/pages/ProjectGit";
 import ProjectEnv from "@/pages/ProjectEnv";
 import ProjectDeploy from "@/pages/ProjectDeploy";
 import ProjectKanban from "@/pages/ProjectKanban";
+import ProjectSessions from "@/pages/ProjectSessions";
 import ClaudeTasks from "@/pages/ClaudeTasks";
 import ClaudePlans from "@/pages/ClaudePlans";
 import ClaudeSessions from "@/pages/ClaudeSessions";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="tasks" element={<ProjectTasks />} />
           <Route path="plans" element={<ProjectPlans />} />
           <Route path="kanban" element={<ProjectKanban />} />
+          <Route path="sessions" element={<ProjectSessions />} />
           <Route path="terminal" element={<ProjectTerminal />} />
           <Route path="git" element={<ProjectGit />} />
           <Route path="env" element={<ProjectEnv />} />
