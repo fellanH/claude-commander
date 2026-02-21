@@ -16,6 +16,7 @@ import type {
   PlanningItem,
   PlanningStatus,
   Project,
+  SearchResults,
   TerminalInfo,
   UpdatePlanningItemInput,
 } from "@/types";
@@ -101,6 +102,10 @@ export const api = {
 
   deletePlanningItem: (id: string) =>
     invoke<void>("delete_planning_item", { id }),
+
+  // Search
+  globalSearch: (query: string) =>
+    invoke<SearchResults>("global_search", { query }),
 
   // Settings
   getSettings: () => invoke<AppSettings>("get_settings"),

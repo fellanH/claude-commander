@@ -125,6 +125,7 @@ export interface AppSettings {
   scan_path: string | null;
   theme: string;
   terminal: string;
+  onboarding_completed: boolean;
 }
 
 export interface TerminalInfo {
@@ -159,6 +160,49 @@ export interface UpdatePlanningItemInput {
   id: string;
   subject: string;
   description?: string;
+}
+
+// ─── Search Results ────────────────────────────────────────────────────────
+
+export interface SearchProjectResult {
+  id: string;
+  name: string;
+  path: string;
+  tags: string[];
+  color: string | null;
+}
+
+export interface SearchPlanningItemResult {
+  id: string;
+  project_id: string | null;
+  project_name: string;
+  subject: string;
+  description: string | null;
+  status: string;
+}
+
+export interface SearchPlanResult {
+  id: string;
+  filename: string;
+  title: string;
+  preview: string;
+  modified_at: string | null;
+}
+
+export interface SearchTaskResult {
+  id: string;
+  team_id: string;
+  team_name: string | null;
+  subject: string;
+  description: string | null;
+  status: string;
+}
+
+export interface SearchResults {
+  projects: SearchProjectResult[];
+  planning_items: SearchPlanningItemResult[];
+  plans: SearchPlanResult[];
+  tasks: SearchTaskResult[];
 }
 
 // ─── PTY (in-app terminal) ─────────────────────────────────────────────────

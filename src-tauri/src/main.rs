@@ -114,6 +114,8 @@ fn main() {
             commands::planning::update_planning_item,
             commands::planning::move_planning_item,
             commands::planning::delete_planning_item,
+            // Search
+            commands::search::global_search,
             // Settings
             commands::settings::get_settings,
             commands::settings::update_settings,

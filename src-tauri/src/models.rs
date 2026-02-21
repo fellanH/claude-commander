@@ -187,6 +187,54 @@ pub struct DeployConfig {
     pub raw: serde_json::Value,
 }
 
+// ─── Search Results ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchProjectResult {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub tags: Vec<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchPlanningItemResult {
+    pub id: String,
+    pub project_id: Option<String>,
+    pub project_name: String,
+    pub subject: String,
+    pub description: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchPlanResult {
+    pub id: String,
+    pub filename: String,
+    pub title: String,
+    pub preview: String,
+    pub modified_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchTaskResult {
+    pub id: String,
+    pub team_id: String,
+    pub team_name: Option<String>,
+    pub subject: String,
+    pub description: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResults {
+    pub projects: Vec<SearchProjectResult>,
+    pub planning_items: Vec<SearchPlanningItemResult>,
+    pub plans: Vec<SearchPlanResult>,
+    pub tasks: Vec<SearchTaskResult>,
+}
+
 // ─── Settings ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +242,7 @@ pub struct AppSettings {
     pub scan_path: Option<String>,
     pub theme: String,
     pub terminal: String,
+    pub onboarding_completed: bool,
 }
 
 impl Default for AppSettings {
@@ -203,6 +252,7 @@ impl Default for AppSettings {
                 .map(|h| h.join("cv").to_string_lossy().to_string()),
             theme: "system".to_string(),
             terminal: "auto".to_string(),
+            onboarding_completed: false,
         }
     }
 }

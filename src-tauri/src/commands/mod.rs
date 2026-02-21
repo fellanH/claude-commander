@@ -4,5 +4,6 @@ pub mod git;
 pub mod planning;
 pub mod projects;
 pub mod pty;
+pub mod search;
 pub mod settings;
 pub mod terminal;

@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate, NavLink } from "react-router";
+import { Outlet, useLocation, NavLink } from "react-router";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -7,10 +7,13 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
+import { api } from "@/lib/api";
 import { SecondaryNav } from "./SecondaryNav";
 import { CommandPalette } from "./CommandPalette";
+import { OnboardingWizard } from "./OnboardingWizard";
 import { Toaster } from "sonner";
 
 const primaryNavItems = [
@@ -23,6 +26,21 @@ const primaryNavItems = [
 export function RootLayout() {
   const location = useLocation();
   const { theme, setTheme } = useAppStore();
+  const queryClient = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.getSettings,
+  });
+
+  const handleOnboardingComplete = async () => {
+    if (!settings) return;
+    await api.updateSettings({ ...settings, onboarding_completed: true });
+    queryClient.invalidateQueries({ queryKey: ["settings"] });
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+  };
+
+  const showWizard = settings !== undefined && !settings.onboarding_completed;
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
@@ -81,6 +99,12 @@ export function RootLayout() {
 
       <Toaster position="bottom-right" richColors />
       <CommandPalette />
+      {showWizard && (
+        <OnboardingWizard
+          settings={settings}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
     </div>
   );
 }

@@ -1,38 +1,62 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search, FolderOpen, Terminal, FileText } from "lucide-react";
+import {
+  Search,
+  FolderOpen,
+  FileText,
+  ListTodo,
+  CheckSquare,
+  Loader2,
+} from "lucide-react";
 import { api } from "@/lib/api";
-import type { Project, ClaudeSession, ClaudePlan } from "@/types";
 
 type ResultItem =
-  | { kind: "project"; item: Project }
-  | { kind: "session"; item: ClaudeSession }
-  | { kind: "plan"; item: ClaudePlan };
+  | { kind: "project"; id: string; name: string; path: string }
+  | {
+      kind: "planning";
+      id: string;
+      subject: string;
+      project_id: string | null;
+      project_name: string;
+      status: string;
+    }
+  | { kind: "plan"; id: string; title: string; preview: string }
+  | {
+      kind: "task";
+      id: string;
+      subject: string;
+      team_name: string | null;
+      status: string;
+    };
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Debounce: 200ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Projects for empty-state browse
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: api.getProjects,
     staleTime: 60_000,
   });
 
-  const { data: sessions } = useQuery({
-    queryKey: ["claude-sessions"],
-    queryFn: api.readClaudeSessions,
-    staleTime: 30_000,
-  });
-
-  const { data: plans } = useQuery({
-    queryKey: ["claude-plans"],
-    queryFn: api.listClaudePlans,
-    staleTime: 30_000,
+  // Rust global search — only fires when debouncedQuery >= 2 chars
+  const { data: searchResults, isFetching } = useQuery({
+    queryKey: ["global-search", debouncedQuery],
+    queryFn: () => api.globalSearch(debouncedQuery),
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 5_000,
   });
 
   // Global Cmd+K toggle
@@ -52,50 +76,71 @@ export function CommandPalette() {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 0);
       setQuery("");
+      setDebouncedQuery("");
       setActiveIndex(0);
     }
   }, [open]);
 
-  const q = query.toLowerCase();
+  const isSearching = debouncedQuery.length >= 2;
 
-  const results: ResultItem[] = [];
-
-  projects?.forEach((p) => {
-    if (
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.path.toLowerCase().includes(q)
-    ) {
-      results.push({ kind: "project", item: p });
-    }
-  });
-
-  sessions?.forEach((s) => {
-    const label = s.cwd?.split("/").slice(-2).join("/") ?? s.project_key;
-    if (
-      !q ||
-      label.toLowerCase().includes(q) ||
-      s.cwd?.toLowerCase().includes(q)
-    ) {
-      results.push({ kind: "session", item: s });
-    }
-  });
-
-  plans?.forEach((p) => {
-    if (!q || p.title.toLowerCase().includes(q)) {
-      results.push({ kind: "plan", item: p });
-    }
-  });
+  const results: ResultItem[] =
+    isSearching && searchResults
+      ? [
+          ...searchResults.projects.map((p) => ({
+            kind: "project" as const,
+            id: p.id,
+            name: p.name,
+            path: p.path,
+          })),
+          ...searchResults.planning_items.map((i) => ({
+            kind: "planning" as const,
+            id: i.id,
+            subject: i.subject,
+            project_id: i.project_id,
+            project_name: i.project_name,
+            status: i.status,
+          })),
+          ...searchResults.plans.map((p) => ({
+            kind: "plan" as const,
+            id: p.id,
+            title: p.title,
+            preview: p.preview,
+          })),
+          ...searchResults.tasks.map((t) => ({
+            kind: "task" as const,
+            id: t.id,
+            subject: t.subject,
+            team_name: t.team_name,
+            status: t.status,
+          })),
+        ]
+      : (projects ?? []).slice(0, 8).map((p) => ({
+          kind: "project" as const,
+          id: p.id,
+          name: p.name,
+          path: p.path,
+        }));
 
   const handleSelect = useCallback(
     (result: ResultItem) => {
       setOpen(false);
-      if (result.kind === "project") {
-        navigate(`/projects/${result.item.id}`);
-      } else if (result.kind === "session") {
-        navigate("/claude/sessions");
-      } else {
-        navigate("/claude/plans");
+      switch (result.kind) {
+        case "project":
+          navigate(`/projects/${result.id}`);
+          break;
+        case "planning":
+          navigate(
+            result.project_id
+              ? `/projects/${result.project_id}`
+              : "/claude/tasks",
+          );
+          break;
+        case "plan":
+          navigate("/claude/plans");
+          break;
+        case "task":
+          navigate("/claude/tasks");
+          break;
       }
     },
     [navigate],
@@ -128,7 +173,11 @@ export function CommandPalette() {
       >
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Search className="size-4 text-muted-foreground shrink-0" />
+          {isFetching ? (
+            <Loader2 className="size-4 text-muted-foreground shrink-0 animate-spin" />
+          ) : (
+            <Search className="size-4 text-muted-foreground shrink-0" />
+          )}
           <input
             ref={inputRef}
             value={query}
@@ -137,7 +186,7 @@ export function CommandPalette() {
               setActiveIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search projects, sessions, plans..."
+            placeholder="Search projects, tasks, plans..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
@@ -149,12 +198,12 @@ export function CommandPalette() {
         <div className="max-h-80 overflow-y-auto py-2">
           {results.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No results
+              {isSearching && !isFetching ? "No results" : "Searching…"}
             </p>
           ) : (
             results.map((result, i) => (
               <ResultRow
-                key={`${result.kind}-${result.item.id}`}
+                key={`${result.kind}-${result.id}`}
                 result={result}
                 isActive={i === activeIndex}
                 onSelect={() => handleSelect(result)}
@@ -184,14 +233,13 @@ function ResultRow({
   }`;
 
   if (result.kind === "project") {
-    const p = result.item;
     return (
       <button className={base} onClick={onSelect} onMouseEnter={onHover}>
         <FolderOpen className="size-4 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{p.name}</p>
+          <p className="font-medium truncate">{result.name}</p>
           <p className="text-xs text-muted-foreground font-mono truncate">
-            {p.path.replace(/^\/Users\/[^/]+/, "~")}
+            {result.path.replace(/^\/Users\/[^/]+/, "~")}
           </p>
         </div>
         <span className="text-xs text-muted-foreground shrink-0">Project</span>
@@ -199,34 +247,53 @@ function ResultRow({
     );
   }
 
-  if (result.kind === "session") {
-    const s = result.item;
-    const label = s.cwd?.split("/").slice(-2).join("/") ?? s.project_key;
+  if (result.kind === "planning") {
     return (
       <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-        <Terminal className="size-4 text-muted-foreground shrink-0" />
+        <ListTodo className="size-4 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{label}</p>
-          {s.cwd && (
-            <p className="text-xs text-muted-foreground font-mono truncate">
-              {s.cwd}
-            </p>
-          )}
+          <p className="font-medium truncate">{result.subject}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {result.project_name}
+          </p>
         </div>
-        <span className="text-xs text-muted-foreground shrink-0">Session</span>
+        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+          {result.status}
+        </span>
       </button>
     );
   }
 
-  const p = result.item;
+  if (result.kind === "plan") {
+    return (
+      <button className={base} onClick={onSelect} onMouseEnter={onHover}>
+        <FileText className="size-4 text-muted-foreground shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{result.title}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {result.preview}
+          </p>
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">Plan</span>
+      </button>
+    );
+  }
+
+  // task
   return (
     <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-      <FileText className="size-4 text-muted-foreground shrink-0" />
+      <CheckSquare className="size-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{p.title}</p>
-        <p className="text-xs text-muted-foreground truncate">{p.preview}</p>
+        <p className="font-medium truncate">{result.subject}</p>
+        {result.team_name && (
+          <p className="text-xs text-muted-foreground truncate">
+            {result.team_name}
+          </p>
+        )}
       </div>
-      <span className="text-xs text-muted-foreground shrink-0">Plan</span>
+      <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+        {result.status}
+      </span>
     </button>
   );
 }

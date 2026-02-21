@@ -22,8 +22,12 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<AppSettings> {
     let terminal = get_setting(conn, "terminal")
         .unwrap_or(Some(defaults.terminal.clone()))
         .unwrap_or(defaults.terminal.clone());
+    let onboarding_completed = get_setting(conn, "onboarding_completed")
+        .flatten()
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
-    Ok(AppSettings { scan_path, theme, terminal })
+    Ok(AppSettings { scan_path, theme, terminal, onboarding_completed })
 }
 
 #[tauri::command]
@@ -40,6 +44,8 @@ pub fn update_settings(state: State<AppState>, settings: AppSettings) -> CmdResu
     }
     set_setting(conn, "theme", &settings.theme)?;
     set_setting(conn, "terminal", &settings.terminal)?;
+    set_setting(conn, "onboarding_completed",
+        if settings.onboarding_completed { "true" } else { "false" })?;
 
     Ok(())
 }
