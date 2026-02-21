@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { AppSettings } from "@/types";
 import { check } from "@tauri-apps/plugin-updater";
 import { getVersion } from "@tauri-apps/api/app";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { restart } from "@tauri-apps/plugin-process";
 
 type UpdateState =
   | "idle"
@@ -88,7 +88,7 @@ export default function SettingsPage() {
         }
       });
       await updateObj.install();
-      await relaunch();
+      await restart();
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setUpdateState("error");
