@@ -23,7 +23,8 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
             color TEXT,
             sort_order INTEGER DEFAULT 0,
             is_archived INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TEXT DEFAULT (datetime('now')),
+            identity_key TEXT
         );
 
         CREATE TABLE IF NOT EXISTS planning_items (
@@ -62,6 +63,15 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
             PRIMARY KEY (session_id, project_id)
         );
         ",
+    )
+    .map_err(CommanderError::from)?;
+
+    // Migration: add identity_key to existing DBs that pre-date this column.
+    // ALTER TABLE fails with "duplicate column name" if it already exists — that is fine.
+    let _ = conn.execute("ALTER TABLE projects ADD COLUMN identity_key TEXT", []);
+    conn.execute_batch(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_identity_key \
+         ON projects(identity_key) WHERE identity_key IS NOT NULL;",
     )
     .map_err(CommanderError::from)?;
 

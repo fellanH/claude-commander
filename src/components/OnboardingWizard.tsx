@@ -42,6 +42,7 @@ export function OnboardingWizard({
         path: p.path,
         tags: p.tags,
         color: p.color ?? undefined,
+        identity_key: p.identity_key ?? undefined,
       }));
     const imported = await api.importScannedProjects(inputs);
     setImportedCount(imported.length);

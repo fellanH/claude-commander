@@ -77,12 +77,52 @@ fn main() {
                 }
             }
 
+            // Start watching the project scan path for directory removals.
+            // Read scan_path from settings (falls back to ~/cv if not set).
+            let scan_path: Option<std::path::PathBuf> = {
+                let db_lock = app_state.db.lock();
+                db_lock
+                    .as_ref()
+                    .and_then(|conn| {
+                        conn.query_row(
+                            "SELECT value FROM settings WHERE key = 'scan_path'",
+                            [],
+                            |row| row.get::<_, String>(0),
+                        )
+                        .ok()
+                    })
+                    .or_else(|| {
+                        dirs::home_dir().map(|h| h.join("cv").to_string_lossy().to_string())
+                    })
+                    .map(std::path::PathBuf::from)
+                    .filter(|p| p.exists())
+            };
+
+            if let Some(proj_path) = scan_path {
+                match services::file_watcher::ProjectWatcher::new(
+                    app_handle.clone(),
+                    proj_path.clone(),
+                ) {
+                    Ok(watcher) => {
+                        let mut watcher_lock = app_state.project_watcher.lock();
+                        *watcher_lock = Some(watcher);
+                        log::info!("Watching {:?} for project removals", proj_path);
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to start project watcher: {}", e);
+                    }
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Projects
             commands::projects::scan_projects,
+            commands::projects::sync_projects,
             commands::projects::get_projects,
+            commands::projects::get_archived_projects,
+            commands::projects::restore_project,
             commands::projects::upsert_project,
             commands::projects::delete_project,
             commands::projects::import_scanned_projects,

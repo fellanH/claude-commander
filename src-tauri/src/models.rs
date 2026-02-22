@@ -12,6 +12,7 @@ pub struct Project {
     pub sort_order: i64,
     pub is_archived: bool,
     pub created_at: String,
+    pub identity_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,6 +21,7 @@ pub struct CreateProjectInput {
     pub path: String,
     pub tags: Option<Vec<String>>,
     pub color: Option<String>,
+    pub identity_key: Option<String>,
 }
 
 // ─── Planning Items ────────────────────────────────────────────────────────
@@ -233,6 +235,20 @@ pub struct SearchResults {
     pub planning_items: Vec<SearchPlanningItemResult>,
     pub plans: Vec<SearchPlanResult>,
     pub tasks: Vec<SearchTaskResult>,
+}
+
+// ─── Sync Result ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncResult {
+    /// Projects whose on-disk path differed from the DB record (renamed/moved).
+    pub updated: Vec<Project>,
+    /// Brand-new projects discovered by the scan.
+    pub added: Vec<Project>,
+    /// Number of projects that matched exactly and needed no change.
+    pub unchanged_count: usize,
+    /// Number of DB records archived because their path no longer exists on disk.
+    pub archived_count: usize,
 }
 
 // ─── Settings ──────────────────────────────────────────────────────────────

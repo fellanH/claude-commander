@@ -9,6 +9,7 @@ export interface Project {
   sort_order: number;
   is_archived: boolean;
   created_at: string;
+  identity_key: string | null;
 }
 
 export interface CreateProjectInput {
@@ -16,6 +17,18 @@ export interface CreateProjectInput {
   path: string;
   tags?: string[];
   color?: string;
+  identity_key?: string;
+}
+
+export interface SyncResult {
+  /** Projects whose on-disk path changed (renamed or relocated). */
+  updated: Project[];
+  /** Brand-new projects discovered by the scan. */
+  added: Project[];
+  /** Number of projects that matched exactly and needed no change. */
+  unchanged_count: number;
+  /** Number of DB records soft-deleted because their path no longer exists. */
+  archived_count: number;
 }
 
 // ─── Claude Tasks ──────────────────────────────────────────────────────────

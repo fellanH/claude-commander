@@ -17,6 +17,7 @@ import type {
   PlanningStatus,
   Project,
   SearchResults,
+  SyncResult,
   TerminalInfo,
   UpdatePlanningItemInput,
 } from "@/types";
@@ -38,6 +39,14 @@ export const api = {
 
   importScannedProjects: (projects: CreateProjectInput[]) =>
     invoke<Project[]>("import_scanned_projects", { projects }),
+
+  syncProjects: (scan_path?: string) =>
+    invoke<SyncResult>("sync_projects", { scanPath: scan_path }),
+
+  getArchivedProjects: () => invoke<Project[]>("get_archived_projects"),
+
+  restoreProject: (project_id: string) =>
+    invoke<void>("restore_project", { projectId: project_id }),
 
   // Claude
   readClaudeTasks: () => invoke<ClaudeTaskFile[]>("read_claude_tasks"),
