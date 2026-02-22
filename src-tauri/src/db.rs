@@ -62,6 +62,16 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
             project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
             PRIMARY KEY (session_id, project_id)
         );
+
+        CREATE TABLE IF NOT EXISTS task_github_links (
+            task_id TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            github_issue_url TEXT NOT NULL,
+            github_issue_number INTEGER,
+            github_repo TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (task_id, team_id)
+        );
         ",
     )
     .map_err(CommanderError::from)?;

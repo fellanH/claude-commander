@@ -151,6 +151,12 @@ fn main() {
             commands::planning::update_planning_item,
             commands::planning::move_planning_item,
             commands::planning::delete_planning_item,
+            // GitHub
+            commands::github::detect_github_repo,
+            commands::github::create_github_issue,
+            commands::github::upsert_task_github_link,
+            commands::github::get_task_github_links,
+            commands::github::delete_task_github_link,
             // Search
             commands::search::global_search,
             // Settings

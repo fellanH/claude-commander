@@ -218,6 +218,30 @@ export interface SearchResults {
   tasks: SearchTaskResult[];
 }
 
+// ─── GitHub Issue Links ────────────────────────────────────────────────────
+
+export interface TaskGithubLink {
+  task_id: string;
+  team_id: string;
+  github_issue_url: string;
+  github_issue_number: number | null;
+  github_repo: string | null;
+  created_at: string;
+}
+
+export interface UpsertTaskGithubLinkInput {
+  task_id: string;
+  team_id: string;
+  github_issue_url: string;
+  github_issue_number?: number;
+  github_repo?: string;
+}
+
+export interface CreateGithubIssueOutput {
+  number: number;
+  url: string;
+}
+
 // ─── PTY (in-app terminal) ─────────────────────────────────────────────────
 
 export interface PtyOutputPayload {

@@ -1,4 +1,5 @@
 pub mod claude;
+pub mod github;
 pub mod env;
 pub mod git;
 pub mod planning;

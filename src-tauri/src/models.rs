@@ -237,6 +237,33 @@ pub struct SearchResults {
     pub tasks: Vec<SearchTaskResult>,
 }
 
+// ─── GitHub Issue Links ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskGithubLink {
+    pub task_id: String,
+    pub team_id: String,
+    pub github_issue_url: String,
+    pub github_issue_number: Option<i64>,
+    pub github_repo: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpsertTaskGithubLinkInput {
+    pub task_id: String,
+    pub team_id: String,
+    pub github_issue_url: String,
+    pub github_issue_number: Option<i64>,
+    pub github_repo: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateGithubIssueOutput {
+    pub number: i64,
+    pub url: String,
+}
+
 // ─── Sync Result ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

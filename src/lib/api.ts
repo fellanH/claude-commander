@@ -5,6 +5,7 @@ import type {
   ClaudeSession,
   ClaudeTaskFile,
   SessionMessage,
+  CreateGithubIssueOutput,
   CreatePlanningItemInput,
   CreateProjectInput,
   DeployConfig,
@@ -18,8 +19,10 @@ import type {
   Project,
   SearchResults,
   SyncResult,
+  TaskGithubLink,
   TerminalInfo,
   UpdatePlanningItemInput,
+  UpsertTaskGithubLinkInput,
 } from "@/types";
 
 // ─── Projects ──────────────────────────────────────────────────────────────
@@ -111,6 +114,28 @@ export const api = {
 
   deletePlanningItem: (id: string) =>
     invoke<void>("delete_planning_item", { id }),
+
+  // GitHub
+  detectGithubRepo: (project_path: string) =>
+    invoke<string | null>("detect_github_repo", { projectPath: project_path }),
+
+  createGithubIssue: (repo: string, title: string, body: string) =>
+    invoke<CreateGithubIssueOutput>("create_github_issue", {
+      repo,
+      title,
+      body,
+    }),
+
+  upsertTaskGithubLink: (link: UpsertTaskGithubLinkInput) =>
+    invoke<TaskGithubLink>("upsert_task_github_link", { link }),
+
+  getTaskGithubLinks: () => invoke<TaskGithubLink[]>("get_task_github_links"),
+
+  deleteTaskGithubLink: (task_id: string, team_id: string) =>
+    invoke<void>("delete_task_github_link", {
+      taskId: task_id,
+      teamId: team_id,
+    }),
 
   // Search
   globalSearch: (query: string) =>
