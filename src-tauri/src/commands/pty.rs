@@ -1,6 +1,7 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
 use crate::pty_state::{PtySession, PtyState};
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use tauri::Emitter;
 
 #[derive(Clone, serde::Serialize)]
@@ -14,6 +15,9 @@ pub struct PtyExitPayload {
     pub pty_id: String,
 }
 
+const MAX_ROWS: u16 = 500;
+const MAX_COLS: u16 = 500;
+
 #[tauri::command]
 pub fn pty_create(
     project_path: String,
@@ -24,6 +28,13 @@ pub fn pty_create(
 ) -> CmdResult<String> {
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
     use std::io::Read;
+
+    if rows == 0 || cols == 0 || rows > MAX_ROWS || cols > MAX_COLS {
+        return Err(to_cmd_err(CommanderError::internal(format!(
+            "Invalid PTY dimensions: {}x{} (max {}x{})",
+            cols, rows, MAX_COLS, MAX_ROWS
+        ))));
+    }
 
     // Resolve binary: look for claude, fall back to $SHELL, then /bin/zsh
     let program = which::which("claude")
@@ -110,7 +121,6 @@ pub fn pty_create(
     pty_state
         .sessions
         .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("lock")))?
         .insert(pty_id.clone(), PtySession { writer, master });
 
     Ok(pty_id)
@@ -123,10 +133,7 @@ pub fn pty_write(
     pty_state: tauri::State<'_, PtyState>,
 ) -> CmdResult<()> {
     use std::io::Write;
-    let mut sessions = pty_state
-        .sessions
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("lock")))?;
+    let mut sessions = pty_state.sessions.lock();
     let s = sessions
         .get_mut(&pty_id)
         .ok_or_else(|| to_cmd_err(CommanderError::internal("no pty")))?;
@@ -147,16 +154,12 @@ pub fn pty_resize(
     pty_state: tauri::State<'_, PtyState>,
 ) -> CmdResult<()> {
     use portable_pty::PtySize;
-    let sessions = pty_state
-        .sessions
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("lock")))?;
+    let sessions = pty_state.sessions.lock();
     let s = sessions
         .get(&pty_id)
         .ok_or_else(|| to_cmd_err(CommanderError::internal("no pty")))?;
     s.master
         .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("master lock")))?
         .resize(PtySize {
             rows,
             cols,
@@ -170,10 +173,6 @@ pub fn pty_resize(
 #[tauri::command]
 pub fn pty_kill(pty_id: String, pty_state: tauri::State<'_, PtyState>) -> CmdResult<()> {
     // Removing + dropping the session closes the master fd → kernel sends SIGHUP to child
-    pty_state
-        .sessions
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("lock")))?
-        .remove(&pty_id);
+    pty_state.sessions.lock().remove(&pty_id);
     Ok(())
 }

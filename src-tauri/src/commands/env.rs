@@ -1,11 +1,13 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
 use crate::models::{DeployConfig, EnvFile, EnvVar};
+use crate::utils::validate_home_path;
 use std::io::Write;
 use std::path::Path;
 
 #[tauri::command]
 pub fn list_env_files(project_path: String) -> CmdResult<Vec<EnvFile>> {
-    let dir = Path::new(&project_path);
+    // Validate project path is within home directory
+    let dir = validate_home_path(&project_path)?;
     let mut env_files = Vec::new();
 
     let patterns = [".env", ".env.local", ".env.development", ".env.production", ".env.test"];
@@ -23,7 +25,7 @@ pub fn list_env_files(project_path: String) -> CmdResult<Vec<EnvFile>> {
     }
 
     // Also check for any other .env.* files
-    if let Ok(entries) = std::fs::read_dir(dir) {
+    if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.filter_map(|e| e.ok()) {
             let fname = entry.file_name();
             let fname_str = fname.to_string_lossy();
@@ -47,6 +49,9 @@ pub fn list_env_files(project_path: String) -> CmdResult<Vec<EnvFile>> {
 
 #[tauri::command]
 pub fn get_env_vars(env_file_path: String) -> CmdResult<Vec<EnvVar>> {
+    // Validate env file path is within home directory
+    validate_home_path(&env_file_path)?;
+
     let path = Path::new(&env_file_path);
     if !path.exists() {
         return Ok(vec![]);
@@ -61,13 +66,16 @@ pub fn get_env_vars(env_file_path: String) -> CmdResult<Vec<EnvVar>> {
 
 #[tauri::command]
 pub fn set_env_var(env_file_path: String, key: String, value: String) -> CmdResult<()> {
+    // Validate env file path is within home directory
+    validate_home_path(&env_file_path)?;
+
     let path = Path::new(&env_file_path);
 
-    let existing = if path.exists() {
-        std::fs::read_to_string(path)
-            .map_err(|e| to_cmd_err(CommanderError::io(e)))?
-    } else {
-        String::new()
+    // Read atomically — avoid TOCTOU by handling NotFound directly instead of checking exists() first
+    let existing = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(to_cmd_err(CommanderError::io(e))),
     };
 
     let mut lines: Vec<String> = existing.lines().map(|l| l.to_string()).collect();
@@ -99,13 +107,17 @@ pub fn set_env_var(env_file_path: String, key: String, value: String) -> CmdResu
 
 #[tauri::command]
 pub fn delete_env_var(env_file_path: String, key: String) -> CmdResult<()> {
-    let path = Path::new(&env_file_path);
-    if !path.exists() {
-        return Ok(());
-    }
+    // Validate env file path is within home directory
+    validate_home_path(&env_file_path)?;
 
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+    let path = Path::new(&env_file_path);
+
+    // Read atomically — avoid TOCTOU by handling NotFound directly instead of checking exists() first
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(to_cmd_err(CommanderError::io(e))),
+    };
 
     let key_prefix = format!("{}=", key);
     let filtered: Vec<&str> = content

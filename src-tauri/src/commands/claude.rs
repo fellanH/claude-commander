@@ -50,7 +50,7 @@ pub fn read_claude_tasks() -> CmdResult<Vec<ClaudeTaskFile>> {
             let content = match std::fs::read_to_string(&task_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("[claude-commander] failed to read task file {}: {}", task_path.display(), e);
+                    log::warn!("failed to read task file {}: {}", task_path.display(), e);
                     continue;
                 }
             };
@@ -59,7 +59,7 @@ pub fn read_claude_tasks() -> CmdResult<Vec<ClaudeTaskFile>> {
             let json: serde_json::Value = match serde_json::from_str(&content) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("[claude-commander] skipped malformed task file {}: {}", task_path.display(), e);
+                    log::warn!("skipped malformed task file {}: {}", task_path.display(), e);
                     continue;
                 }
             };

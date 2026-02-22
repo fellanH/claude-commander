@@ -1,16 +1,21 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
 use crate::models::{CreateProjectInput, Project};
 use crate::state::AppState;
+use crate::utils::validate_home_path;
 use tauri::State;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
 #[tauri::command]
 pub fn scan_projects(scan_path: Option<String>) -> CmdResult<Vec<Project>> {
-    let base = scan_path
-        .map(std::path::PathBuf::from)
-        .or_else(|| dirs::home_dir().map(|h| h.join("cv")))
-        .ok_or_else(|| to_cmd_err(CommanderError::internal("Cannot determine scan path")))?;
+    let base = if let Some(ref p) = scan_path {
+        // Validate user-supplied path is within home directory
+        validate_home_path(p)?
+    } else {
+        dirs::home_dir()
+            .map(|h| h.join("cv"))
+            .ok_or_else(|| to_cmd_err(CommanderError::internal("Cannot determine scan path")))?
+    };
 
     if !base.exists() {
         return Ok(vec![]);
@@ -72,9 +77,7 @@ pub fn scan_projects(scan_path: Option<String>) -> CmdResult<Vec<Project>> {
 
 #[tauri::command]
 pub fn get_projects(state: State<AppState>) -> CmdResult<Vec<Project>> {
-    let db = state.db.lock().map_err(|_| {
-        to_cmd_err(CommanderError::internal("DB lock failed"))
-    })?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -117,9 +120,10 @@ pub fn upsert_project(
     state: State<AppState>,
     project: CreateProjectInput,
 ) -> CmdResult<Project> {
-    let db = state.db.lock().map_err(|_| {
-        to_cmd_err(CommanderError::internal("DB lock failed"))
-    })?;
+    // Validate that the project path is within the user's home directory
+    validate_home_path(&project.path)?;
+
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -159,9 +163,7 @@ pub fn upsert_project(
 
 #[tauri::command]
 pub fn delete_project(state: State<AppState>, project_id: String) -> CmdResult<()> {
-    let db = state.db.lock().map_err(|_| {
-        to_cmd_err(CommanderError::internal("DB lock failed"))
-    })?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;

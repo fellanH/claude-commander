@@ -5,9 +5,7 @@ use tauri::State;
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> CmdResult<AppSettings> {
-    let db = state.db.lock().map_err(|_| {
-        to_cmd_err(CommanderError::internal("DB lock failed"))
-    })?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -32,9 +30,7 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<AppSettings> {
 
 #[tauri::command]
 pub fn update_settings(state: State<AppState>, settings: AppSettings) -> CmdResult<()> {
-    let db = state.db.lock().map_err(|_| {
-        to_cmd_err(CommanderError::internal("DB lock failed"))
-    })?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;

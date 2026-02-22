@@ -13,6 +13,8 @@ pub const EVENT_SESSIONS_CHANGED: &str = "claude-sessions-changed";
 
 pub struct ClaudeWatcher {
     _watcher: notify::RecommendedWatcher,
+    /// Dropping this sender signals the debounce thread to exit.
+    _stop_tx: std::sync::mpsc::SyncSender<()>,
 }
 
 impl ClaudeWatcher {
@@ -22,9 +24,19 @@ impl ClaudeWatcher {
         let pending_clone = pending_events.clone();
         let app_clone = app_handle.clone();
 
+        // Shutdown channel — dropping the sender causes the receiver to see Disconnected
+        let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(0);
+
         // Debounce processor thread
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_millis(100));
+
+            // Exit when the watcher is dropped
+            match stop_rx.try_recv() {
+                Ok(_) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+
             let now = Instant::now();
             let mut to_emit = Vec::new();
 
@@ -75,6 +87,9 @@ impl ClaudeWatcher {
 
         watcher.watch(&watch_path, RecursiveMode::Recursive)?;
 
-        Ok(Self { _watcher: watcher })
+        Ok(Self {
+            _watcher: watcher,
+            _stop_tx: stop_tx,
+        })
     }
 }

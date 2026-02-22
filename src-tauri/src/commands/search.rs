@@ -27,10 +27,7 @@ pub fn global_search(state: State<AppState>, query: String) -> CmdResult<SearchR
 
     // --- DB queries (lock held only for this block) ---
     let (projects, planning_items) = {
-        let db = state
-            .db
-            .lock()
-            .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+        let db = state.db.lock();
         let conn = db
             .as_ref()
             .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -47,7 +44,7 @@ pub fn global_search(state: State<AppState>, query: String) -> CmdResult<SearchR
             .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
 
         let projects: Vec<SearchProjectResult> = stmt
-            .query_map([&like_q], |row| {
+            .query_map([&like_q], |row: &rusqlite::Row| {
                 let tags_str: String = row.get(3)?;
                 let color: Option<String> = row.get(4)?;
                 Ok(SearchProjectResult {
@@ -59,7 +56,7 @@ pub fn global_search(state: State<AppState>, query: String) -> CmdResult<SearchR
                 })
             })
             .map_err(|e| to_cmd_err(CommanderError::from(e)))?
-            .filter_map(|r| r.ok())
+            .filter_map(|r: rusqlite::Result<_>| r.ok())
             .collect();
 
         // Planning items joined with projects for project_name
@@ -76,7 +73,7 @@ pub fn global_search(state: State<AppState>, query: String) -> CmdResult<SearchR
             .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
 
         let planning_items: Vec<SearchPlanningItemResult> = stmt2
-            .query_map([&like_q], |row| {
+            .query_map([&like_q], |row: &rusqlite::Row| {
                 let desc: String = row.get(4)?;
                 Ok(SearchPlanningItemResult {
                     id: row.get(0)?,
@@ -88,7 +85,7 @@ pub fn global_search(state: State<AppState>, query: String) -> CmdResult<SearchR
                 })
             })
             .map_err(|e| to_cmd_err(CommanderError::from(e)))?
-            .filter_map(|r| r.ok())
+            .filter_map(|r: rusqlite::Result<_>| r.ok())
             .collect();
 
         (projects, planning_items)

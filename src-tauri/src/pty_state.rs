@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 pub struct PtySession {
     pub writer: Box<dyn std::io::Write + Send>,

@@ -5,6 +5,10 @@ use std::path::Path;
 pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
     let conn = Connection::open(path).map_err(CommanderError::from)?;
 
+    // Wait up to 5 s when another writer holds the lock (WAL mode allows one writer at a time)
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(CommanderError::from)?;
+
     // Enable WAL mode for better concurrent performance
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
         .map_err(CommanderError::from)?;
@@ -35,6 +39,7 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
             updated_at TEXT DEFAULT (datetime('now'))
         );
 
+        -- TODO: reserved for future encrypted env-var caching feature
         CREATE TABLE IF NOT EXISTS env_var_cache (
             id TEXT PRIMARY KEY,
             project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
@@ -50,6 +55,7 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
             value TEXT NOT NULL
         );
 
+        -- TODO: reserved for future session↔project correlation feature
         CREATE TABLE IF NOT EXISTS session_project_links (
             session_id TEXT NOT NULL,
             project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,

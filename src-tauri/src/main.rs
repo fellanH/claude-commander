@@ -8,12 +8,15 @@ pub mod models;
 mod pty_state;
 mod services;
 mod state;
+pub mod utils;
 
 use pty_state::PtyState;
 use state::AppState;
 use tauri::Manager;
 
 fn main() {
+    env_logger::init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -43,15 +46,12 @@ fn main() {
 
             match db::init_db(&db_path) {
                 Ok(conn) => {
-                    let mut db_lock = app_state.db.lock().map_err(|_| {
-                        Box::new(std::io::Error::other("Failed to lock DB mutex"))
-                            as Box<dyn std::error::Error>
-                    })?;
+                    let mut db_lock = app_state.db.lock();
                     *db_lock = Some(conn);
-                    println!("Database initialized at {:?}", db_path);
+                    log::info!("Database initialized at {:?}", db_path);
                 }
                 Err(e) => {
-                    eprintln!("Failed to initialize database: {}", e);
+                    log::error!("Failed to initialize database: {}", e);
                     return Err(Box::new(std::io::Error::other(e.to_string())));
                 }
             }
@@ -67,15 +67,12 @@ fn main() {
                     claude_path.clone(),
                 ) {
                     Ok(watcher) => {
-                        let mut watcher_lock = app_state.claude_watcher.lock().map_err(|_| {
-                            Box::new(std::io::Error::other("Failed to lock watcher mutex"))
-                                as Box<dyn std::error::Error>
-                        })?;
+                        let mut watcher_lock = app_state.claude_watcher.lock();
                         *watcher_lock = Some(watcher);
-                        println!("Watching {:?} for changes", claude_path);
+                        log::info!("Watching {:?} for changes", claude_path);
                     }
                     Err(e) => {
-                        eprintln!("Failed to start file watcher: {}", e);
+                        log::warn!("Failed to start file watcher: {}", e);
                     }
                 }
             }

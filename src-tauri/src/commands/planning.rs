@@ -35,10 +35,7 @@ pub fn get_planning_items(
     state: State<AppState>,
     project_id: String,
 ) -> CmdResult<Vec<PlanningItem>> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -65,10 +62,7 @@ pub fn create_planning_item(
     state: State<AppState>,
     item: CreatePlanningItemInput,
 ) -> CmdResult<PlanningItem> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -116,10 +110,7 @@ pub fn update_planning_item(
     state: State<AppState>,
     item: UpdatePlanningItemInput,
 ) -> CmdResult<PlanningItem> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -150,10 +141,15 @@ pub fn move_planning_item(
     status: String,
     sort_order: i64,
 ) -> CmdResult<()> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+    // Validate status value before hitting the DB
+    const VALID_STATUSES: &[&str] = &["backlog", "todo", "in_progress", "done"];
+    if !VALID_STATUSES.contains(&status.as_str()) {
+        return Err(to_cmd_err(CommanderError::internal(format!(
+            "Invalid status value: {status}"
+        ))));
+    }
+
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
@@ -170,10 +166,7 @@ pub fn move_planning_item(
 
 #[tauri::command]
 pub fn delete_planning_item(state: State<AppState>, id: String) -> CmdResult<()> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|_| to_cmd_err(CommanderError::internal("DB lock failed")))?;
+    let db = state.db.lock();
     let conn = db
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;

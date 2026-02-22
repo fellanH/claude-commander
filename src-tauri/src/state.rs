@@ -1,6 +1,6 @@
 use crate::services::file_watcher::ClaudeWatcher;
+use parking_lot::Mutex;
 use rusqlite::Connection;
-use std::sync::Mutex;
 
 pub struct AppState {
     pub db: Mutex<Option<Connection>>,

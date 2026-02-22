@@ -1,4 +1,6 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
+use crate::utils::validate_home_path;
+use std::io::Write;
 
 #[derive(serde::Serialize)]
 pub struct TerminalInfo {
@@ -26,6 +28,9 @@ pub fn detect_terminal() -> CmdResult<TerminalInfo> {
 
 #[tauri::command]
 pub fn launch_claude(project_path: String, terminal: Option<String>) -> CmdResult<()> {
+    // Validate that project_path is within the user's home directory
+    validate_home_path(&project_path)?;
+
     let terminal = terminal.unwrap_or_else(|| {
         if std::path::Path::new("/Applications/Warp.app").exists() {
             "warp".to_string()
@@ -69,8 +74,6 @@ pub fn launch_claude(project_path: String, terminal: Option<String>) -> CmdResul
 /// Write a temp .command script and open it with the given terminal app.
 /// Avoids AppleScript/Automation permission entirely — `open` requires no TCC entitlement.
 fn launch_via_script(project_path: &str, claude_bin: &str, terminal_app: &str) -> CmdResult<()> {
-    let tmp_path = std::env::temp_dir().join("claude_commander_launch.command");
-
     let script = format!(
         "#!/bin/bash\n\
          export PATH=\"$PATH:/usr/local/bin:/opt/homebrew/bin\"\n\
@@ -80,16 +83,30 @@ fn launch_via_script(project_path: &str, claude_bin: &str, terminal_app: &str) -
         shell_quote(claude_bin),
     );
 
-    std::fs::write(&tmp_path, &script)
+    // Use tempfile for a unique, race-free script path (no predictable name to exploit)
+    let mut temp = tempfile::Builder::new()
+        .suffix(".command")
+        .tempfile()
+        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+
+    temp.write_all(script.as_bytes())
+        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+    temp.flush()
+        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+
+    // Keep the file on disk past the tempfile lifetime so Terminal.app can read it
+    let tmp_path = temp
+        .into_temp_path()
+        .keep()
         .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
 
     std::process::Command::new("chmod")
-        .args(["755", tmp_path.to_str().unwrap_or("")])
+        .args(["755", &tmp_path.to_string_lossy()])
         .output()
         .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
 
     let output = std::process::Command::new("open")
-        .args(["-a", terminal_app, tmp_path.to_str().unwrap_or("")])
+        .args(["-a", terminal_app, &tmp_path.to_string_lossy()])
         .output()
         .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
 
@@ -99,6 +116,13 @@ fn launch_via_script(project_path: &str, claude_bin: &str, terminal_app: &str) -
             "Failed to open {terminal_app}: {stderr}"
         ))));
     }
+
+    // Deferred cleanup: give Terminal.app 5 s to read the script before we delete it
+    let tmp_path_cleanup = tmp_path.to_path_buf();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        let _ = std::fs::remove_file(&tmp_path_cleanup);
+    });
 
     Ok(())
 }
