@@ -203,7 +203,7 @@ pub fn sync_projects(
     scan_path: Option<String>,
 ) -> CmdResult<SyncResult> {
     // Scan filesystem without holding the DB lock.
-    let scanned = scan_projects(scan_path)?;
+    let scanned = scan_projects(scan_path.clone())?;
 
     let db = state.db.lock();
     let conn = db
@@ -290,15 +290,30 @@ pub fn sync_projects(
     }
 
     // ── 4. Archive stale records ─────────────────────────────────────────────
-    // Any DB project not matched during the scan whose path no longer exists
-    // on disk is soft-deleted (is_archived = 1).  Projects that exist on disk
-    // but are outside the scan path are left untouched.
+    // Any DB project not matched during the scan is soft-deleted when either:
+    //   a) its path no longer exists on disk, OR
+    //   b) its path exists but falls outside the current scan root (stale from
+    //      a previous scan_path setting or a folder renamed while the app was
+    //      closed).
+    let scan_base: Option<std::path::PathBuf> = if let Some(ref p) = scan_path {
+        validate_home_path(p).ok()
+    } else {
+        dirs::home_dir().map(|h| h.join("cv"))
+    };
+
     let mut archived_count: usize = 0;
     for proj in &db_projects {
         if matched_ids.contains(&proj.id) {
             continue;
         }
-        if !std::path::Path::new(&proj.path).exists() {
+        let path_obj = std::path::Path::new(&proj.path);
+        let path_exists = path_obj.exists();
+        let within_scan_root = scan_base
+            .as_ref()
+            .map(|base| path_obj.starts_with(base))
+            .unwrap_or(true);
+
+        if !path_exists || !within_scan_root {
             conn.execute(
                 "UPDATE projects SET is_archived = 1 WHERE id = ?1",
                 [&proj.id],
@@ -492,6 +507,30 @@ pub fn restore_project(state: State<AppState>, project_id: String) -> CmdResult<
     .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn purge_archived_projects(state: State<AppState>) -> CmdResult<usize> {
+    let db = state.db.lock();
+    let conn = db
+        .as_ref()
+        .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
+    let count = conn
+        .execute("DELETE FROM projects WHERE is_archived = 1", [])
+        .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
+    Ok(count)
+}
+
+#[tauri::command]
+pub fn reset_all_projects(state: State<AppState>) -> CmdResult<usize> {
+    let db = state.db.lock();
+    let conn = db
+        .as_ref()
+        .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
+    let count = conn
+        .execute("DELETE FROM projects", [])
+        .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
+    Ok(count)
 }
 
 #[tauri::command]

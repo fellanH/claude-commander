@@ -51,6 +51,10 @@ export const api = {
   restoreProject: (project_id: string) =>
     invoke<void>("restore_project", { projectId: project_id }),
 
+  purgeArchivedProjects: () => invoke<number>("purge_archived_projects"),
+
+  resetAllProjects: () => invoke<number>("reset_all_projects"),
+
   // Claude
   readClaudeTasks: () => invoke<ClaudeTaskFile[]>("read_claude_tasks"),
 

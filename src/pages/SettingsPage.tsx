@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, Save, RefreshCw } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Save, RefreshCw, Trash2, Database } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ type UpdateState =
   | "error";
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
+
   const { data: settings, isLoading } = useQuery({
     queryKey: ["settings"],
     queryFn: api.getSettings,
@@ -46,6 +48,42 @@ export default function SettingsPage() {
   const { data: currentVersion } = useQuery({
     queryKey: ["appVersion"],
     queryFn: getVersion,
+  });
+
+  const [confirmAction, setConfirmAction] = useState<"purge" | "reset" | null>(
+    null,
+  );
+
+  const { data: activeProjects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.getProjects,
+  });
+
+  const { data: archivedProjects } = useQuery({
+    queryKey: ["projects-archived"],
+    queryFn: api.getArchivedProjects,
+  });
+
+  const purgeArchivedMutation = useMutation({
+    mutationFn: api.purgeArchivedProjects,
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["projects-archived"] });
+      setConfirmAction(null);
+      toast.success(`Purged ${count} archived project(s)`);
+    },
+    onError: () => toast.error("Failed to purge archived projects"),
+  });
+
+  const resetAllMutation = useMutation({
+    mutationFn: api.resetAllProjects,
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["projects-archived"] });
+      setConfirmAction(null);
+      toast.success(`Deleted ${count} project record(s)`);
+    },
+    onError: () => toast.error("Failed to reset project database"),
   });
 
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
@@ -190,6 +228,106 @@ export default function SettingsPage() {
               </p>
             </div>
           </label>
+        </div>
+
+        <div className="border border-border rounded-lg p-4 space-y-4">
+          <h2 className="text-sm font-semibold">Data Management</h2>
+
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            <div className="flex justify-between">
+              <span>Active projects</span>
+              <span className="font-mono text-foreground">
+                {activeProjects?.length ?? "…"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Archived projects</span>
+              <span className="font-mono text-foreground">
+                {archivedProjects?.length ?? "…"}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {confirmAction === "purge" ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground flex-1">
+                  Permanently delete {archivedProjects?.length ?? 0} archived
+                  record(s)?
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => purgeArchivedMutation.mutate()}
+                  disabled={purgeArchivedMutation.isPending}
+                >
+                  {purgeArchivedMutation.isPending && (
+                    <Loader2 className="size-3.5 mr-1 animate-spin" />
+                  )}
+                  Confirm
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmAction(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={() => setConfirmAction("purge")}
+                disabled={(archivedProjects?.length ?? 0) === 0}
+              >
+                <Trash2 className="size-3.5 mr-1.5" /> Purge Archived Projects
+              </Button>
+            )}
+
+            {confirmAction === "reset" ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground flex-1">
+                  Delete all{" "}
+                  {(activeProjects?.length ?? 0) +
+                    (archivedProjects?.length ?? 0)}{" "}
+                  project records?
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => resetAllMutation.mutate()}
+                  disabled={resetAllMutation.isPending}
+                >
+                  {resetAllMutation.isPending && (
+                    <Loader2 className="size-3.5 mr-1 animate-spin" />
+                  )}
+                  Confirm Reset
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmAction(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={() => setConfirmAction("reset")}
+              >
+                <Database className="size-3.5 mr-1.5" /> Reset Project Database
+              </Button>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            After a reset, go to Projects and click "Sync Projects" to rebuild.
+          </p>
         </div>
 
         <Button

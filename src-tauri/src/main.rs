@@ -125,6 +125,8 @@ fn main() {
             commands::projects::restore_project,
             commands::projects::upsert_project,
             commands::projects::delete_project,
+            commands::projects::purge_archived_projects,
+            commands::projects::reset_all_projects,
             commands::projects::import_scanned_projects,
             // Claude
             commands::claude::read_claude_tasks,
