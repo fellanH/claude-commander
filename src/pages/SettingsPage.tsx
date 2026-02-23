@@ -27,6 +27,8 @@ export default function SettingsPage() {
     scan_path: null,
     theme: "system",
     terminal: "auto",
+    onboarding_completed: false,
+    github_close_prompt: true,
   });
 
   useEffect(() => {
@@ -161,6 +163,33 @@ export default function SettingsPage() {
               <option value="terminal">Terminal.app</option>
             </select>
           </div>
+        </div>
+
+        <div className="border border-border rounded-lg p-4 space-y-4">
+          <h2 className="text-sm font-semibold">GitHub</h2>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.github_close_prompt}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  github_close_prompt: e.target.checked,
+                }))
+              }
+              className="mt-0.5"
+            />
+            <div>
+              <p className="text-sm font-medium">
+                Prompt to close linked issue on task completion
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When a task with a linked GitHub issue is marked complete, offer
+                to close the issue automatically via the{" "}
+                <span className="font-mono">gh</span> CLI.
+              </p>
+            </div>
+          </label>
         </div>
 
         <Button

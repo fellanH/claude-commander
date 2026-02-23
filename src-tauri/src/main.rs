@@ -154,6 +154,8 @@ fn main() {
             // GitHub
             commands::github::detect_github_repo,
             commands::github::create_github_issue,
+            commands::github::close_github_issue,
+            commands::github::fetch_issue_states,
             commands::github::upsert_task_github_link,
             commands::github::get_task_github_links,
             commands::github::delete_task_github_link,

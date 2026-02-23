@@ -131,6 +131,21 @@ export const api = {
 
   getTaskGithubLinks: () => invoke<TaskGithubLink[]>("get_task_github_links"),
 
+  closeGithubIssue: (
+    task_id: string,
+    team_id: string,
+    repo: string,
+    number: number,
+  ) =>
+    invoke<TaskGithubLink>("close_github_issue", {
+      taskId: task_id,
+      teamId: team_id,
+      repo,
+      number,
+    }),
+
+  fetchIssueStates: () => invoke<TaskGithubLink[]>("fetch_issue_states"),
+
   deleteTaskGithubLink: (task_id: string, team_id: string) =>
     invoke<void>("delete_task_github_link", {
       taskId: task_id,

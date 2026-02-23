@@ -162,6 +162,8 @@ pub fn upsert_task_github_link(
         github_issue_number: number,
         github_repo: repo,
         created_at: now,
+        github_issue_state: None,
+        state_updated_at: None,
     })
 }
 
@@ -173,12 +175,17 @@ pub fn get_task_github_links(state: State<AppState>) -> CmdResult<Vec<TaskGithub
         .as_ref()
         .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
 
+    load_all_links(conn).map_err(to_cmd_err)
+}
+
+fn load_all_links(conn: &rusqlite::Connection) -> Result<Vec<TaskGithubLink>, CommanderError> {
     let mut stmt = conn
         .prepare(
-            "SELECT task_id, team_id, github_issue_url, github_issue_number, github_repo, created_at
+            "SELECT task_id, team_id, github_issue_url, github_issue_number,
+                    github_repo, created_at, github_issue_state, state_updated_at
              FROM task_github_links ORDER BY created_at DESC",
         )
-        .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
+        .map_err(CommanderError::from)?;
 
     let links = stmt
         .query_map([], |row| {
@@ -189,13 +196,140 @@ pub fn get_task_github_links(state: State<AppState>) -> CmdResult<Vec<TaskGithub
                 github_issue_number: row.get(3)?,
                 github_repo: row.get(4)?,
                 created_at: row.get(5)?,
+                github_issue_state: row.get(6)?,
+                state_updated_at: row.get(7)?,
             })
         })
-        .map_err(|e| to_cmd_err(CommanderError::from(e)))?
+        .map_err(CommanderError::from)?
         .filter_map(|r| r.ok())
         .collect();
 
     Ok(links)
+}
+
+/// Close a linked GitHub issue via `gh issue close` and cache the new state.
+#[tauri::command]
+pub fn close_github_issue(
+    state: State<AppState>,
+    task_id: String,
+    team_id: String,
+    repo: String,
+    number: i64,
+) -> CmdResult<TaskGithubLink> {
+    let output = std::process::Command::new("gh")
+        .args(["issue", "close", &number.to_string(), "--repo", &repo])
+        .output()
+        .map_err(|e| {
+            to_cmd_err(CommanderError::internal(format!(
+                "Failed to run gh CLI: {}",
+                e
+            )))
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(to_cmd_err(CommanderError::internal(format!(
+            "gh issue close failed: {}",
+            stderr.trim()
+        ))));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let db = state.db.lock();
+    let conn = db
+        .as_ref()
+        .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
+
+    conn.execute(
+        "UPDATE task_github_links
+         SET github_issue_state = 'closed', state_updated_at = ?1
+         WHERE task_id = ?2 AND team_id = ?3",
+        rusqlite::params![now, task_id, team_id],
+    )
+    .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
+
+    // Return the full updated link.
+    let link = conn
+        .query_row(
+            "SELECT task_id, team_id, github_issue_url, github_issue_number,
+                    github_repo, created_at, github_issue_state, state_updated_at
+             FROM task_github_links WHERE task_id = ?1 AND team_id = ?2",
+            rusqlite::params![task_id, team_id],
+            |row| {
+                Ok(TaskGithubLink {
+                    task_id: row.get(0)?,
+                    team_id: row.get(1)?,
+                    github_issue_url: row.get(2)?,
+                    github_issue_number: row.get(3)?,
+                    github_repo: row.get(4)?,
+                    created_at: row.get(5)?,
+                    github_issue_state: row.get(6)?,
+                    state_updated_at: row.get(7)?,
+                })
+            },
+        )
+        .map_err(|e| to_cmd_err(CommanderError::from(e)))?;
+
+    Ok(link)
+}
+
+/// Fetch the current state of every linked GitHub issue via `gh issue view`
+/// and update the cache.  Skips links where repo or number are missing.
+/// Failures for individual issues are silently skipped so a single bad link
+/// does not abort the whole refresh.
+#[tauri::command]
+pub fn fetch_issue_states(state: State<AppState>) -> CmdResult<Vec<TaskGithubLink>> {
+    let db = state.db.lock();
+    let conn = db
+        .as_ref()
+        .ok_or_else(|| to_cmd_err(CommanderError::internal("DB not initialized")))?;
+
+    let links = load_all_links(conn).map_err(to_cmd_err)?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    for link in &links {
+        let (Some(repo), Some(number)) = (&link.github_repo, link.github_issue_number) else {
+            continue;
+        };
+
+        let Ok(output) = std::process::Command::new("gh")
+            .args([
+                "issue", "view",
+                &number.to_string(),
+                "--repo", repo,
+                "--json", "state",
+            ])
+            .output()
+        else {
+            continue;
+        };
+
+        if !output.status.success() {
+            continue;
+        }
+
+        let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) else {
+            continue;
+        };
+
+        // GitHub returns "OPEN" / "CLOSED" (uppercase).
+        let state_str = json["state"]
+            .as_str()
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        if state_str == "open" || state_str == "closed" {
+            let _ = conn.execute(
+                "UPDATE task_github_links
+                 SET github_issue_state = ?1, state_updated_at = ?2
+                 WHERE task_id = ?3 AND team_id = ?4",
+                rusqlite::params![state_str, now, link.task_id, link.team_id],
+            );
+        }
+    }
+
+    load_all_links(conn).map_err(to_cmd_err)
 }
 
 /// Remove the GitHub issue link for a task.

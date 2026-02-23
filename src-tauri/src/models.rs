@@ -247,6 +247,10 @@ pub struct TaskGithubLink {
     pub github_issue_number: Option<i64>,
     pub github_repo: Option<String>,
     pub created_at: String,
+    /// Cached issue state: `"open"` or `"closed"`.  `None` = not yet fetched.
+    pub github_issue_state: Option<String>,
+    /// When `github_issue_state` was last refreshed.
+    pub state_updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -286,6 +290,9 @@ pub struct AppSettings {
     pub theme: String,
     pub terminal: String,
     pub onboarding_completed: bool,
+    /// When `true`, completing a task that has a linked GitHub issue prompts
+    /// the user to close the issue automatically.
+    pub github_close_prompt: bool,
 }
 
 impl Default for AppSettings {
@@ -296,6 +303,7 @@ impl Default for AppSettings {
             theme: "system".to_string(),
             terminal: "auto".to_string(),
             onboarding_completed: false,
+            github_close_prompt: true,
         }
     }
 }

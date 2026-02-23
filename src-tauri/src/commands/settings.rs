@@ -24,8 +24,12 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<AppSettings> {
         .flatten()
         .map(|v| v == "true")
         .unwrap_or(false);
+    let github_close_prompt = get_setting(conn, "github_close_prompt")
+        .flatten()
+        .map(|v| v == "true")
+        .unwrap_or(true); // default: prompt is on
 
-    Ok(AppSettings { scan_path, theme, terminal, onboarding_completed })
+    Ok(AppSettings { scan_path, theme, terminal, onboarding_completed, github_close_prompt })
 }
 
 #[tauri::command]
@@ -42,6 +46,8 @@ pub fn update_settings(state: State<AppState>, settings: AppSettings) -> CmdResu
     set_setting(conn, "terminal", &settings.terminal)?;
     set_setting(conn, "onboarding_completed",
         if settings.onboarding_completed { "true" } else { "false" })?;
+    set_setting(conn, "github_close_prompt",
+        if settings.github_close_prompt { "true" } else { "false" })?;
 
     Ok(())
 }

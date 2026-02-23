@@ -139,6 +139,8 @@ export interface AppSettings {
   theme: string;
   terminal: string;
   onboarding_completed: boolean;
+  /** When true, completing a task with a linked issue prompts to close it. */
+  github_close_prompt: boolean;
 }
 
 export interface TerminalInfo {
@@ -227,6 +229,9 @@ export interface TaskGithubLink {
   github_issue_number: number | null;
   github_repo: string | null;
   created_at: string;
+  /** Cached issue state — `"open"`, `"closed"`, or `null` if not yet fetched. */
+  github_issue_state: "open" | "closed" | null;
+  state_updated_at: string | null;
 }
 
 export interface UpsertTaskGithubLinkInput {

@@ -85,5 +85,15 @@ pub fn init_db(path: &Path) -> Result<Connection, CommanderError> {
     )
     .map_err(CommanderError::from)?;
 
+    // Migration: add cached GitHub issue state columns to task_github_links.
+    let _ = conn.execute(
+        "ALTER TABLE task_github_links ADD COLUMN github_issue_state TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE task_github_links ADD COLUMN state_updated_at TEXT",
+        [],
+    );
+
     Ok(conn)
 }
