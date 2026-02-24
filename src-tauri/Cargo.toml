@@ -1,6 +1,6 @@
 [package]
 name = "claude-commander"
-version = "0.1.6"
+version = "0.2.0"
 description = "AI Project Management Desktop App"
 authors = ["admin"]
 edition = "2021"
