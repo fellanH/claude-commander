@@ -129,6 +129,37 @@ pub struct ClaudeSession {
     pub project_id: Option<String>,
 }
 
+/// A single tool call embedded inside an assistant turn.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionToolCall {
+    pub id: String,
+    pub name: String,
+    /// Input JSON serialised to a compact string for display.
+    pub input: String,
+    /// Output / result text, if available on the same turn.
+    pub output: Option<String>,
+}
+
+/// A parsed conversation turn from a JSONL session file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionTurn {
+    pub uuid: String,
+    /// "user" | "assistant"
+    pub role: String,
+    /// Plain text content (may be empty for tool-only turns).
+    pub content: String,
+    pub timestamp: String,
+    pub tool_calls: Vec<SessionToolCall>,
+}
+
+/// Return value of `read_claude_session`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionDetail {
+    pub turns: Vec<SessionTurn>,
+    /// Total number of lines in the file (before the 500-turn cap).
+    pub total_count: usize,
+}
+
 // ─── Git ───────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

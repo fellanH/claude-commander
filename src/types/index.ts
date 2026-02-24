@@ -79,6 +79,28 @@ export interface ClaudeSession {
   project_id: string | null;
 }
 
+export interface SessionToolCall {
+  id: string;
+  name: string;
+  /** Compact JSON string of the tool input */
+  input: string;
+  output: string | null;
+}
+
+export interface SessionTurn {
+  uuid: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  tool_calls: SessionToolCall[];
+}
+
+export interface SessionDetail {
+  turns: SessionTurn[];
+  /** Total line count before the 500-turn cap */
+  total_count: number;
+}
+
 // ─── Git ───────────────────────────────────────────────────────────────────
 
 export interface GitStatus {

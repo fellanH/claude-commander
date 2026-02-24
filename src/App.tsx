@@ -15,6 +15,7 @@ import ProjectSessions from "@/pages/ProjectSessions";
 import ClaudeTasks from "@/pages/ClaudeTasks";
 import ClaudePlans from "@/pages/ClaudePlans";
 import ClaudeSessions from "@/pages/ClaudeSessions";
+import SessionDetail from "@/pages/SessionDetail";
 import SettingsPage from "@/pages/SettingsPage";
 
 export default function App() {
@@ -44,6 +45,10 @@ export default function App() {
           <Route path="tasks" element={<ClaudeTasks />} />
           <Route path="plans" element={<ClaudePlans />} />
           <Route path="sessions" element={<ClaudeSessions />} />
+          <Route
+            path="sessions/:projectKey/:sessionId"
+            element={<SessionDetail />}
+          />
         </Route>
 
         {/* Settings */}

@@ -134,6 +134,7 @@ fn main() {
             commands::claude::read_claude_plan,
             commands::claude::read_claude_sessions,
             commands::claude::read_session_messages,
+            commands::claude::read_claude_session,
             // Terminal
             commands::terminal::detect_terminal,
             commands::terminal::launch_claude,

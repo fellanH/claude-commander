@@ -1,5 +1,8 @@
 use crate::error::{to_cmd_err, CmdResult, CommanderError};
-use crate::models::{ClaudePlan, ClaudeSession, ClaudeTask, ClaudeTaskFile, SessionMessage};
+use crate::models::{
+    ClaudePlan, ClaudeSession, ClaudeTask, ClaudeTaskFile, SessionDetail, SessionMessage,
+    SessionToolCall, SessionTurn,
+};
 use std::path::PathBuf;
 
 fn claude_dir() -> PathBuf {
@@ -317,6 +320,130 @@ pub fn read_session_messages(
         .collect();
 
     Ok(messages)
+}
+
+/// Parse a JSONL session file and return typed turns (capped at 500).
+#[tauri::command]
+pub fn read_claude_session(
+    project_key: String,
+    session_id: String,
+) -> CmdResult<SessionDetail> {
+    let path = claude_dir()
+        .join("projects")
+        .join(&project_key)
+        .join(format!("{}.jsonl", session_id));
+
+    use std::io::BufRead;
+    let file = std::fs::File::open(&path)
+        .map_err(|e| to_cmd_err(CommanderError::io(e)))?;
+
+    const MAX_TURNS: usize = 500;
+
+    let lines: Vec<String> = std::io::BufReader::new(file)
+        .lines()
+        .filter_map(|l| l.ok())
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+
+    let total_count = lines.len();
+
+    let turns: Vec<SessionTurn> = lines
+        .into_iter()
+        .take(MAX_TURNS)
+        .filter_map(|line| parse_session_turn(&line))
+        .collect();
+
+    Ok(SessionDetail { turns, total_count })
+}
+
+fn parse_session_turn(line: &str) -> Option<SessionTurn> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+
+    let msg_type = v["type"].as_str()?;
+    // Only process "user" and "assistant" message types
+    if msg_type != "user" && msg_type != "assistant" {
+        return None;
+    }
+
+    let uuid = v["uuid"].as_str().unwrap_or("").to_string();
+    let timestamp = v["timestamp"].as_str().unwrap_or("").to_string();
+    let message = &v["message"];
+    let role = msg_type.to_string();
+
+    match msg_type {
+        "user" => {
+            // User content can be a plain string or an array of content blocks
+            let content = match &message["content"] {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Array(blocks) => {
+                    // Collect text blocks; skip tool_result blocks for the text field
+                    blocks
+                        .iter()
+                        .filter(|b| b["type"].as_str() == Some("text"))
+                        .filter_map(|b| b["text"].as_str())
+                        .collect::<Vec<_>>()
+                        .join("")
+                }
+                _ => return None,
+            };
+
+            if content.is_empty() {
+                // May still be a tool_result only turn — skip silently
+                return None;
+            }
+
+            Some(SessionTurn {
+                uuid,
+                role,
+                content,
+                timestamp,
+                tool_calls: vec![],
+            })
+        }
+        "assistant" => {
+            let blocks = message["content"].as_array()?;
+
+            // Extract plain text from text blocks
+            let content: String = blocks
+                .iter()
+                .filter(|b| b["type"].as_str() == Some("text"))
+                .filter_map(|b| b["text"].as_str())
+                .collect::<Vec<_>>()
+                .join("");
+
+            // Extract tool_use blocks
+            let tool_calls: Vec<SessionToolCall> = blocks
+                .iter()
+                .filter(|b| b["type"].as_str() == Some("tool_use"))
+                .map(|b| {
+                    let id = b["id"].as_str().unwrap_or("").to_string();
+                    let name = b["name"].as_str().unwrap_or("unknown").to_string();
+                    let input = serde_json::to_string(&b["input"])
+                        .unwrap_or_else(|_| "{}".to_string());
+                    SessionToolCall {
+                        id,
+                        name,
+                        input,
+                        output: None,
+                    }
+                })
+                .collect();
+
+            // Skip turns that have neither text nor tool calls
+            if content.is_empty() && tool_calls.is_empty() {
+                return None;
+            }
+
+            Some(SessionTurn {
+                uuid,
+                role,
+                content,
+                timestamp,
+                tool_calls,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn read_first_line_cwd(path: &std::path::Path) -> Option<String> {

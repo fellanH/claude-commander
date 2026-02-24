@@ -4,6 +4,7 @@ import type {
   ClaudePlan,
   ClaudeSession,
   ClaudeTaskFile,
+  SessionDetail,
   SessionMessage,
   CreateGithubIssueOutput,
   CreatePlanningItemInput,
@@ -67,6 +68,12 @@ export const api = {
 
   readSessionMessages: (project_key: string, session_id: string) =>
     invoke<SessionMessage[]>("read_session_messages", {
+      projectKey: project_key,
+      sessionId: session_id,
+    }),
+
+  readClaudeSession: (project_key: string, session_id: string) =>
+    invoke<SessionDetail>("read_claude_session", {
       projectKey: project_key,
       sessionId: session_id,
     }),
