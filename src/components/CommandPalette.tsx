@@ -30,6 +30,37 @@ type ResultItem =
       status: string;
     };
 
+type GroupedResults = {
+  label: string;
+  items: ResultItem[];
+}[];
+
+const KIND_LABELS: Record<ResultItem["kind"], string> = {
+  project: "Projects",
+  planning: "Planning Items",
+  plan: "Plans",
+  task: "Tasks",
+};
+
+const KIND_ORDER: ResultItem["kind"][] = [
+  "project",
+  "planning",
+  "plan",
+  "task",
+];
+
+function groupResults(results: ResultItem[]): GroupedResults {
+  const byKind: Partial<Record<ResultItem["kind"], ResultItem[]>> = {};
+  for (const r of results) {
+    if (!byKind[r.kind]) byKind[r.kind] = [];
+    byKind[r.kind]!.push(r);
+  }
+  return KIND_ORDER.filter((k) => (byKind[k]?.length ?? 0) > 0).map((k) => ({
+    label: KIND_LABELS[k],
+    items: byKind[k]!,
+  }));
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,10 +68,12 @@ export function CommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
 
-  // Debounce: 200ms
+  // Debounce: 150ms
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    const t = setTimeout(() => setDebouncedQuery(query), 150);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -81,9 +114,36 @@ export function CommandPalette() {
     }
   }, [open]);
 
+  // Scroll active item into view
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  // Focus trap: Tab cycles within modal
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const focusable = listRef.current?.querySelectorAll<HTMLElement>(
+      "button, input, [tabindex]:not([tabindex='-1'])",
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+
   const isSearching = debouncedQuery.length >= 2;
 
-  const results: ResultItem[] =
+  const flatResults: ResultItem[] =
     isSearching && searchResults
       ? [
           ...searchResults.projects.map((p) => ({
@@ -121,6 +181,8 @@ export function CommandPalette() {
           path: p.path,
         }));
 
+  const groups = groupResults(flatResults);
+
   const handleSelect = useCallback(
     (result: ResultItem) => {
       setOpen(false);
@@ -146,15 +208,15 @@ export function CommandPalette() {
     [navigate],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, flatResults.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter" && results[activeIndex]) {
-      handleSelect(results[activeIndex]);
+    } else if (e.key === "Enter" && flatResults[activeIndex]) {
+      handleSelect(flatResults[activeIndex]);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -162,30 +224,50 @@ export function CommandPalette() {
 
   if (!open) return null;
 
+  // Build a flat index map so we can track activeIndex per group item
+  let flatIdx = 0;
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/40"
+      role="presentation"
       onClick={() => setOpen(false)}
+      onKeyDown={handleModalKeyDown}
     >
       <div
+        ref={listRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Global search"
         className="fixed left-1/2 top-1/3 -translate-x-1/2 w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           {isFetching ? (
-            <Loader2 className="size-4 text-muted-foreground shrink-0 animate-spin" />
+            <Loader2
+              className="size-4 text-muted-foreground shrink-0 animate-spin"
+              aria-hidden="true"
+            />
           ) : (
-            <Search className="size-4 text-muted-foreground shrink-0" />
+            <Search
+              className="size-4 text-muted-foreground shrink-0"
+              aria-hidden="true"
+            />
           )}
           <input
             ref={inputRef}
+            role="combobox"
+            aria-expanded={flatResults.length > 0}
+            aria-controls="cmd-palette-listbox"
+            aria-autocomplete="list"
+            aria-label="Search"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
               setActiveIndex(0);
             }}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
             placeholder="Search projects, tasks, plans..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
@@ -195,20 +277,44 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
-        <div className="max-h-80 overflow-y-auto py-2">
-          {results.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
+        <div
+          id="cmd-palette-listbox"
+          role="listbox"
+          aria-label="Search results"
+          className="max-h-80 overflow-y-auto py-2"
+        >
+          {flatResults.length === 0 ? (
+            <p
+              role="status"
+              className="text-sm text-muted-foreground text-center py-6"
+            >
               {isSearching && !isFetching ? "No results" : "Searching…"}
             </p>
           ) : (
-            results.map((result, i) => (
-              <ResultRow
-                key={`${result.kind}-${result.id}`}
-                result={result}
-                isActive={i === activeIndex}
-                onSelect={() => handleSelect(result)}
-                onHover={() => setActiveIndex(i)}
-              />
+            groups.map((group) => (
+              <div key={group.label} role="group" aria-label={group.label}>
+                {/* Group heading */}
+                <div className="px-4 pt-3 pb-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {group.label}
+                  </span>
+                </div>
+                {group.items.map((result) => {
+                  const thisIdx = flatIdx++;
+                  const isActive = thisIdx === activeIndex;
+                  return (
+                    <ResultRow
+                      key={`${result.kind}-${result.id}`}
+                      ref={isActive ? activeItemRef : undefined}
+                      result={result}
+                      isActive={isActive}
+                      flatIndex={thisIdx}
+                      onSelect={() => handleSelect(result)}
+                      onHover={() => setActiveIndex(thisIdx)}
+                    />
+                  );
+                })}
+              </div>
             ))
           )}
         </div>
@@ -217,40 +323,56 @@ export function CommandPalette() {
   );
 }
 
-function ResultRow({
-  result,
-  isActive,
-  onSelect,
-  onHover,
-}: {
-  result: ResultItem;
-  isActive: boolean;
-  onSelect: () => void;
-  onHover: () => void;
-}) {
+import { forwardRef } from "react";
+
+const ResultRow = forwardRef<
+  HTMLButtonElement,
+  {
+    result: ResultItem;
+    isActive: boolean;
+    flatIndex: number;
+    onSelect: () => void;
+    onHover: () => void;
+  }
+>(function ResultRow({ result, isActive, flatIndex, onSelect, onHover }, ref) {
   const base = `w-full text-left flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
     isActive ? "bg-accent" : "hover:bg-accent/50"
   }`;
 
+  const sharedProps = {
+    ref,
+    className: base,
+    role: "option" as const,
+    "aria-selected": isActive,
+    id: `cmd-result-${flatIndex}`,
+    onClick: onSelect,
+    onMouseEnter: onHover,
+  };
+
   if (result.kind === "project") {
     return (
-      <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-        <FolderOpen className="size-4 text-muted-foreground shrink-0" />
+      <button {...sharedProps}>
+        <FolderOpen
+          className="size-4 text-muted-foreground shrink-0"
+          aria-hidden="true"
+        />
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{result.name}</p>
           <p className="text-xs text-muted-foreground font-mono truncate">
             {result.path.replace(/^\/Users\/[^/]+/, "~")}
           </p>
         </div>
-        <span className="text-xs text-muted-foreground shrink-0">Project</span>
       </button>
     );
   }
 
   if (result.kind === "planning") {
     return (
-      <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-        <ListTodo className="size-4 text-muted-foreground shrink-0" />
+      <button {...sharedProps}>
+        <ListTodo
+          className="size-4 text-muted-foreground shrink-0"
+          aria-hidden="true"
+        />
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{result.subject}</p>
           <p className="text-xs text-muted-foreground truncate">
@@ -266,23 +388,28 @@ function ResultRow({
 
   if (result.kind === "plan") {
     return (
-      <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-        <FileText className="size-4 text-muted-foreground shrink-0" />
+      <button {...sharedProps}>
+        <FileText
+          className="size-4 text-muted-foreground shrink-0"
+          aria-hidden="true"
+        />
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{result.title}</p>
           <p className="text-xs text-muted-foreground truncate">
             {result.preview}
           </p>
         </div>
-        <span className="text-xs text-muted-foreground shrink-0">Plan</span>
       </button>
     );
   }
 
   // task
   return (
-    <button className={base} onClick={onSelect} onMouseEnter={onHover}>
-      <CheckSquare className="size-4 text-muted-foreground shrink-0" />
+    <button {...sharedProps}>
+      <CheckSquare
+        className="size-4 text-muted-foreground shrink-0"
+        aria-hidden="true"
+      />
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{result.subject}</p>
         {result.team_name && (
@@ -296,4 +423,4 @@ function ResultRow({
       </span>
     </button>
   );
-}
+});
