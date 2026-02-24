@@ -167,6 +167,9 @@ fn main() {
             // Settings
             commands::settings::get_settings,
             commands::settings::update_settings,
+            // Updater
+            commands::updater::check_for_update,
+            commands::updater::install_update,
             // PTY (in-app terminal)
             commands::pty::pty_create,
             commands::pty::pty_write,

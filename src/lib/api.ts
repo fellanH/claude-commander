@@ -22,6 +22,7 @@ import type {
   SyncResult,
   TaskGithubLink,
   TerminalInfo,
+  UpdateInfo,
   UpdatePlanningItemInput,
   UpsertTaskGithubLinkInput,
 } from "@/types";
@@ -184,4 +185,9 @@ export const api = {
     invoke<void>("pty_resize", { ptyId: pty_id, cols, rows }),
 
   ptyKill: (pty_id: string) => invoke<void>("pty_kill", { ptyId: pty_id }),
+
+  // Updater
+  checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
+
+  installUpdate: () => invoke<void>("install_update"),
 };

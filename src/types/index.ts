@@ -269,6 +269,14 @@ export interface CreateGithubIssueOutput {
   url: string;
 }
 
+// ─── Updater ───────────────────────────────────────────────────────────────
+
+export interface UpdateInfo {
+  available: boolean;
+  version?: string;
+  body?: string;
+}
+
 // ─── PTY (in-app terminal) ─────────────────────────────────────────────────
 
 export interface PtyOutputPayload {

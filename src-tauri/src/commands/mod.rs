@@ -8,3 +8,4 @@ pub mod pty;
 pub mod search;
 pub mod settings;
 pub mod terminal;
+pub mod updater;
